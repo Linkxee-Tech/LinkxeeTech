@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ImageStudioState } from '../types';
 import * as geminiService from '../services/geminiService';
 import Loader from './Loader';
@@ -18,6 +18,18 @@ const ImageStudio: React.FC = () => {
   const [state, setState] = useState<ImageStudioState>(initialState);
   const [editPrompt, setEditPrompt] = useState('');
   const [analysisPrompt, setAnalysisPrompt] = useState('');
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+        const savedHistory = localStorage.getItem('imageStudioHistory');
+        if (savedHistory) {
+            setPromptHistory(JSON.parse(savedHistory));
+        }
+    } catch (e) {
+        console.error("Failed to load prompt history:", e);
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (!state.prompt.trim()) {
@@ -28,9 +40,22 @@ const ImageStudio: React.FC = () => {
     try {
         const imageBase64 = await geminiService.generateImage(state.prompt, "photorealistic", state.aspectRatio);
         setState(s => ({...s, generatedImage: imageBase64, isLoading: false, mode: 'EDIT' }));
+        
+        setPromptHistory(prevHistory => {
+            const newHistory = [state.prompt.trim(), ...prevHistory.filter(p => p.toLowerCase() !== state.prompt.trim().toLowerCase())].slice(0, 20);
+            localStorage.setItem('imageStudioHistory', JSON.stringify(newHistory));
+            return newHistory;
+        });
     } catch (e) {
         console.error(e);
         setState(s => ({...s, isLoading: false, error: 'Failed to generate image. Please try again.'}));
+    }
+  };
+  
+  const clearHistory = () => {
+    if (window.confirm("Are you sure you want to clear your prompt history?")) {
+        setPromptHistory([]);
+        localStorage.removeItem('imageStudioHistory');
     }
   };
 
@@ -91,6 +116,42 @@ const ImageStudio: React.FC = () => {
                         <label htmlFor="image-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Image Idea</label>
                         <textarea id="image-prompt" value={state.prompt} onChange={e => setState(s=>({...s, prompt: e.target.value}))} className="w-full h-24 p-2 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500" placeholder="A robot holding a red skateboard." title="Describe the image you want to generate in detail."/>
                     </div>
+                    <details className="group">
+                        <summary className="list-none flex items-center justify-between cursor-pointer text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                            <span>Prompt History</span>
+                            <svg className="h-5 w-5 transform transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </summary>
+                        <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md border border-gray-200 dark:border-gray-600 max-h-36 overflow-y-auto">
+                            {promptHistory.length > 0 ? (
+                                <>
+                                    <ul className="space-y-1">
+                                        {promptHistory.map((p, i) => (
+                                            <li key={`${i}-${p}`}>
+                                                <button
+                                                    onClick={() => setState(s => ({ ...s, prompt: p }))}
+                                                    className="text-left w-full text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 p-1 rounded truncate"
+                                                    title={`Use prompt: "${p}"`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <button
+                                        onClick={clearHistory}
+                                        className="w-full text-center mt-2 text-xs text-red-500 hover:underline"
+                                        title="Permanently clear your prompt history."
+                                    >
+                                        Clear History
+                                    </button>
+                                </>
+                            ) : (
+                                <p className="text-xs text-gray-500 text-center py-2">No history yet. Generate an image to start!</p>
+                            )}
+                        </div>
+                    </details>
                     <div>
                          <label htmlFor="aspect-ratio-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Aspect Ratio</label>
                          <select id="aspect-ratio-select" value={state.aspectRatio} onChange={(e) => setState(s => ({...s, aspectRatio: e.target.value}))} className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" title="Choose the aspect ratio for your generated image.">
