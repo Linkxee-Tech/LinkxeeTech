@@ -1,0 +1,8 @@
+{
+  "name": "CartoonForge AI Studio",
+  "description": "An AI studio that turns text ideas into cartoons, edits images, holds real-time conversations, and provides grounded search answers, all powered by the Gemini API.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
